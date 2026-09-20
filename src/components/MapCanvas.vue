@@ -21,6 +21,7 @@ let panning = false
 let lastPan = { x: 0, y: 0 }
 let pinchStartDist = 0
 let pinchStartTile = 24
+let rafId = 0
 
 const clampTile = (value) => Math.min(MAX_TILE, Math.max(MIN_TILE, value))
 
@@ -29,7 +30,7 @@ const draw = () => {
   if (!canvas || !props.floor) return
   const { w, h } = size.value
   if (w === 0 || h === 0) return
-  const dpr = window.devicePixelRatio || 1
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
   canvas.width = Math.round(w * dpr)
   canvas.height = Math.round(h * dpr)
   const ctx = canvas.getContext('2d')
@@ -45,6 +46,14 @@ const draw = () => {
   })
 }
 
+const scheduleDraw = () => {
+  if (rafId) return
+  rafId = requestAnimationFrame(() => {
+    rafId = 0
+    draw()
+  })
+}
+
 const fit = () => {
   if (!props.floor) return
   const { w, h } = size.value
@@ -55,7 +64,7 @@ const fit = () => {
     x: (w - props.floor.width * ts) / 2,
     y: (h - props.floor.height * ts) / 2
   }
-  draw()
+  scheduleDraw()
 }
 
 const focusRoom = (row, col) => {
@@ -66,7 +75,7 @@ const focusRoom = (row, col) => {
     x: w / 2 - (col + 0.5) * tileSize.value,
     y: h / 2 - (row + 0.5) * tileSize.value
   }
-  draw()
+  scheduleDraw()
 }
 
 const distBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
@@ -93,14 +102,14 @@ const onPointerMove = (e) => {
     const [a, b] = [...pointers.values()]
     const d = distBetween(a, b)
     if (pinchStartDist > 0) tileSize.value = clampTile(pinchStartTile * (d / pinchStartDist))
-    draw()
+    scheduleDraw()
   } else if (panning) {
     offset.value = {
       x: offset.value.x + (e.clientX - lastPan.x),
       y: offset.value.y + (e.clientY - lastPan.y)
     }
     lastPan = { x: e.clientX, y: e.clientY }
-    draw()
+    scheduleDraw()
   }
 }
 
@@ -122,7 +131,7 @@ const onWheel = (e) => {
     y: my - (my - offset.value.y) * scale
   }
   tileSize.value = next
-  draw()
+  scheduleDraw()
 }
 
 let observer
@@ -142,10 +151,13 @@ onMounted(() => {
   nextTick(fit)
 })
 
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  if (rafId) cancelAnimationFrame(rafId)
+})
 
 watch(() => props.floor, () => nextTick(fit))
-watch(() => props.theme, draw)
+watch(() => props.theme, scheduleDraw)
 
 defineExpose({ fit, focusRoom })
 </script>

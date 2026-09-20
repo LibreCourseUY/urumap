@@ -1,12 +1,13 @@
 <script setup>
 import { ref } from 'vue'
 import { appConfig } from '../config.js'
+import { readStorage, writeStorage } from '../lib/storage.js'
 
 const STORAGE_KEY = 'urumap_terms_accepted'
-const show = ref(!!appConfig.disclaimer && !localStorage.getItem(STORAGE_KEY))
+const show = ref(!!appConfig.disclaimer && !readStorage(STORAGE_KEY))
 
 const accept = () => {
-  localStorage.setItem(STORAGE_KEY, 'true')
+  writeStorage(STORAGE_KEY, 'true')
   show.value = false
 }
 </script>

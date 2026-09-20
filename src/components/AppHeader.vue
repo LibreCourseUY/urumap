@@ -1,113 +1,67 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { filterRooms } from '../lib/rooms.js'
-
-const props = defineProps({
-  appName: { type: String, required: true },
-  maps: { type: Array, default: () => [] },
-  selectedMap: { type: Object, default: null },
-  rooms: { type: Array, default: () => [] },
+defineProps({
+  mapName: { type: String, default: '' },
   theme: { type: String, default: 'dark' }
 })
 
-const emit = defineEmits(['select-map', 'select-room', 'reset', 'toggle-theme'])
-
-const query = ref('')
-const focused = ref(false)
-
-const results = computed(() => filterRooms(props.rooms, query.value))
-const showResults = computed(() => focused.value && query.value.trim().length > 0)
-
-const pick = (room) => {
-  emit('select-room', room)
-  query.value = ''
-  focused.value = false
-}
+defineEmits(['back', 'search', 'toggle-theme', 'reset'])
 </script>
 
 <template>
-  <header class="header">
-    <div class="top">
-      <div class="brand">
-        <img src="/favicon.svg" alt="" class="logo" />
-        <h1>{{ appName }}</h1>
-      </div>
+  <header class="topbar">
+    <button class="icon-btn" aria-label="Volver" @click="$emit('back')">
+      <svg viewBox="0 0 24 24" width="22" height="22">
+        <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z" />
+      </svg>
+    </button>
 
-      <div class="actions">
-        <select
-          v-if="maps.length > 1"
-          class="map-select"
-          :value="selectedMap?.id"
-          @change="emit('select-map', $event.target.value)"
-        >
-          <option v-for="map in maps" :key="map.id" :value="map.id">{{ map.name }}</option>
-        </select>
+    <h1 class="title" :title="mapName">{{ mapName }}</h1>
 
-        <button class="icon-btn" @click="emit('toggle-theme')" :title="theme === 'dark' ? 'Modo claro' : 'Modo oscuro'">
-          {{ theme === 'dark' ? '\u2600' : '\u263E' }}
-        </button>
-        <button class="icon-btn" @click="emit('reset')" title="Centrar mapa">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z" />
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <div class="search">
-      <input
-        v-model="query"
-        type="search"
-        placeholder="Buscar sala o espacio..."
-        @focus="focused = true"
-        @blur="focused = false"
-      />
-      <ul v-if="showResults" class="results">
-        <li v-for="room in results" :key="room.id" @mousedown.prevent="pick(room)">
-          <span class="name">{{ room.label }}</span>
-          <span class="where">{{ room.floorLabel }}</span>
-        </li>
-        <li v-if="results.length === 0" class="empty">Sin resultados</li>
-      </ul>
+    <div class="actions">
+      <button class="icon-btn" aria-label="Buscar" @click="$emit('search')">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z" />
+        </svg>
+      </button>
+      <button
+        class="icon-btn"
+        :aria-label="theme === 'dark' ? 'Modo claro' : 'Modo oscuro'"
+        @click="$emit('toggle-theme')"
+      >
+        <svg v-if="theme === 'dark'" viewBox="0 0 24 24" width="22" height="22">
+          <path fill="currentColor" d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h-1v3h2V2h-1zm0 17h-1v3h2v-3h-1zM2 11h3v2H2v-2zm17 0h3v2h-3v-2zM4.2 5.6 5.6 4.2l2.1 2.1-1.4 1.4L4.2 5.6zm12.1 12.1 1.4-1.4 2.1 2.1-1.4 1.4-2.1-2.1zM4.2 18.4l2.1-2.1 1.4 1.4-2.1 2.1-1.4-1.4zm12.1-12.1 2.1-2.1 1.4 1.4-2.1 2.1-1.4-1.4z" />
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="22" height="22">
+          <path fill="currentColor" d="M12.3 2a9 9 0 1 0 9.7 9.6 7 7 0 0 1-9.7-9.6z" />
+        </svg>
+      </button>
+      <button class="icon-btn" aria-label="Centrar mapa" @click="$emit('reset')">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <path fill="currentColor" d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z" />
+        </svg>
+      </button>
     </div>
   </header>
 </template>
 
 <style scoped>
-.header {
-  position: relative;
-  z-index: 1000;
+.topbar {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: calc(56px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 0.5rem 0;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+  z-index: 20;
 }
 
-.top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.6rem 1rem;
-  height: 56px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.title {
+  flex: 1;
   min-width: 0;
-}
-
-.logo {
-  width: 28px;
-  height: 28px;
-}
-
-.brand h1 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -115,102 +69,25 @@ const pick = (room) => {
 
 .actions {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.map-select {
-  max-width: 220px;
-  padding: 0.4rem 0.6rem;
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  gap: 0.15rem;
 }
 
 .icon-btn {
-  width: 34px;
-  height: 34px;
-  display: flex;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-2);
+  background: transparent;
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-}
-
-.icon-btn:hover {
-  background: var(--surface-3);
-}
-
-.search {
-  position: relative;
-  padding: 0 1rem 0.7rem;
-}
-
-.search input {
-  width: 100%;
-  padding: 0.55rem 0.75rem;
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 10px;
-  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  background: var(--surface-2);
   outline: none;
-}
-
-.search input:focus {
-  border-color: var(--accent);
-}
-
-.results {
-  position: absolute;
-  top: 100%;
-  left: 1rem;
-  right: 1rem;
-  max-height: 300px;
-  overflow-y: auto;
-  list-style: none;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  margin-top: 4px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-  z-index: 10;
-}
-
-.results li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.65rem 0.9rem;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border);
-}
-
-.results li:last-child {
-  border-bottom: none;
-}
-
-.results li:hover {
-  background: var(--surface-3);
-}
-
-.name {
-  font-weight: 600;
-}
-
-.where {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.empty {
-  color: var(--text-muted);
-  cursor: default;
 }
 </style>

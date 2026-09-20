@@ -4,6 +4,9 @@
     "name": "Edificio Demo",
     "description": "",
     "region": "",
+    "floorCount": 3,
+    "buildingCount": 1,
+    "updatedAt": "2026-01-01T00:00:00.000Z",
     "file": "maps/demo/edificio-demo.json"
   }
 ]

@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import MapCatalog from './components/MapCatalog.vue'
 import AppHeader from './components/AppHeader.vue'
 import FloorTabs from './components/FloorTabs.vue'
 import MapCanvas from './components/MapCanvas.vue'
+import SearchOverlay from './components/SearchOverlay.vue'
 import DisclaimerModal from './components/DisclaimerModal.vue'
 import { appConfig } from './config.js'
 import { normalizeBuildingMap, floorsOfBuilding } from './lib/map.js'
@@ -11,6 +13,8 @@ import { useMetrics } from './composables/useMetrics.js'
 
 const { track, trackView } = useMetrics()
 
+const view = ref('catalog')
+const searchOpen = ref(false)
 const canvasRef = ref(null)
 const catalog = ref([])
 const map = ref(null)
@@ -18,49 +22,67 @@ const selectedMapId = ref(null)
 const buildingId = ref(null)
 const currentFloor = ref(null)
 const error = ref('')
-const loading = ref(true)
+const loading = ref(false)
 
 const prefersLight =
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches
 const theme = ref(prefersLight ? 'light' : 'dark')
 
-const floors = computed(() =>
-  map.value ? floorsOfBuilding(map.value, buildingId.value) : []
-)
+const floors = computed(() => (map.value ? floorsOfBuilding(map.value, buildingId.value) : []))
 const floorData = computed(
   () => floors.value.find((f) => f.floorIndex === currentFloor.value) || null
 )
 const rooms = computed(() => (map.value ? extractRooms(map.value) : []))
 
 const loadCatalog = async () => {
-  const res = await fetch(appConfig.catalogUrl)
-  if (!res.ok) throw new Error(`No se pudo cargar el catálogo (HTTP ${res.status})`)
-  const data = await res.json()
-  return Array.isArray(data) ? data : data.maps || []
+  try {
+    const res = await fetch(appConfig.catalogUrl)
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data) ? data : data.maps || []
+  } catch {
+    return []
+  }
 }
 
 const selectMap = async (id) => {
   const entry = catalog.value.find((m) => m.id === id)
   if (!entry) return
   selectedMapId.value = id
-  loading.value = true
+  map.value = null
   error.value = ''
+  loading.value = true
+  view.value = 'map'
+  track('map_open', { map: id })
   try {
     const res = await fetch(`${appConfig.base}${entry.file}`)
     if (!res.ok) throw new Error(`No se pudo cargar el mapa (HTTP ${res.status})`)
     const normalized = normalizeBuildingMap(await res.json())
     map.value = normalized
-    buildingId.value = normalized.buildings[0].id
+    buildingId.value = normalized.buildings[0]?.id || 'default'
     currentFloor.value = normalized.defaultFloor
+    document.title = normalized.name
   } catch (err) {
     error.value = err.message
-    map.value = null
   } finally {
     loading.value = false
   }
 }
 
+const backToCatalog = () => {
+  view.value = 'catalog'
+  searchOpen.value = false
+  document.title = appConfig.name
+}
+
+const selectBuilding = (id) => {
+  buildingId.value = id
+  const list = floorsOfBuilding(map.value, id)
+  currentFloor.value = list[0]?.floorIndex ?? null
+}
+
 const selectRoom = async (room) => {
+  searchOpen.value = false
   track('room_click', { room: room.label, floor: room.floor })
   if (room.floor !== currentFloor.value) {
     currentFloor.value = room.floor
@@ -79,14 +101,7 @@ watch(theme, (value) => {
 
 onMounted(async () => {
   document.documentElement.dataset.theme = theme.value
-  try {
-    catalog.value = await loadCatalog()
-    if (catalog.value.length > 0) await selectMap(catalog.value[0].id)
-    else loading.value = false
-  } catch (err) {
-    error.value = err.message
-    loading.value = false
-  }
+  catalog.value = await loadCatalog()
   trackView()
 })
 </script>
@@ -95,30 +110,49 @@ onMounted(async () => {
   <DisclaimerModal />
 
   <div class="app">
-    <AppHeader
+    <MapCatalog
+      v-if="view === 'catalog'"
       :app-name="appConfig.name"
+      :description="appConfig.description"
       :maps="catalog"
-      :selected-map="catalog.find((m) => m.id === selectedMapId) || null"
-      :rooms="rooms"
-      :theme="theme"
-      @select-map="selectMap"
-      @select-room="selectRoom"
-      @reset="canvasRef?.fit()"
-      @toggle-theme="toggleTheme"
+      @select="selectMap"
     />
 
-    <FloorTabs :floors="floors" :current="currentFloor" @select="currentFloor = $event" />
+    <template v-else>
+      <AppHeader
+        :map-name="map?.name || appConfig.name"
+        :theme="theme"
+        @back="backToCatalog"
+        @search="searchOpen = true"
+        @toggle-theme="toggleTheme"
+        @reset="canvasRef?.fit()"
+      />
 
-    <main class="map-area">
-      <MapCanvas ref="canvasRef" :floor="floorData" :theme="theme" />
+      <FloorTabs
+        :buildings="map?.buildings || []"
+        :current-building="buildingId"
+        :floors="floors"
+        :current="currentFloor"
+        @select="currentFloor = $event"
+        @select-building="selectBuilding"
+      />
 
-      <div v-if="loading" class="overlay-msg">Cargando mapa...</div>
-      <div v-else-if="error" class="overlay-msg error">{{ error }}</div>
-      <div v-else-if="!map" class="overlay-msg">
-        No hay mapas publicados todavía. Agregá un archivo JSON en
-        <code>public/maps/</code>.
-      </div>
-    </main>
+      <main class="map-area">
+        <MapCanvas v-if="floorData" ref="canvasRef" :floor="floorData" :theme="theme" />
+        <div v-if="loading" class="overlay-msg">Cargando mapa...</div>
+        <div v-else-if="error" class="overlay-msg error">
+          <p>{{ error }}</p>
+          <button @click="backToCatalog">Volver</button>
+        </div>
+      </main>
+    </template>
+
+    <SearchOverlay
+      :open="searchOpen"
+      :rooms="rooms"
+      @select="selectRoom"
+      @close="searchOpen = false"
+    />
   </div>
 </template>
 
@@ -150,14 +184,21 @@ onMounted(async () => {
   box-sizing: border-box;
 }
 
+html,
+body {
+  overscroll-behavior: none;
+}
+
 body {
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   background: var(--surface);
   color: var(--text);
+  -webkit-text-size-adjust: 100%;
 }
 
 .app {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -173,6 +214,8 @@ body {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
+  gap: 1rem;
   align-items: center;
   justify-content: center;
   padding: 2rem;
@@ -183,6 +226,16 @@ body {
 
 .overlay-msg.error {
   color: #ef4444;
+  pointer-events: auto;
+}
+
+.overlay-msg button {
+  padding: 0.6rem 1.2rem;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
 }
 
 code {

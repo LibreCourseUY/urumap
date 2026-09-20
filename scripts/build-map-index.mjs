@@ -28,6 +28,9 @@ async function buildEntry(file) {
     name: map.name || relativePath,
     description: map.description || '',
     region: map.region || '',
+    floorCount: Array.isArray(map.floors) ? map.floors.length : 0,
+    buildingCount: Array.isArray(map.buildings) ? map.buildings.length : 1,
+    updatedAt: map.updatedAt || '',
     file: `maps/${relativePath}`
   }
 }
