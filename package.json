@@ -1,0 +1,21 @@
+{
+  "name": "urumap",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/build-map-index.mjs && vite build",
+    "preview": "vite preview",
+    "start": "node server.js",
+    "index": "node scripts/build-map-index.mjs",
+    "test": "node test/map.test.mjs"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "vue": "^3.4.21"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.1.6"
+  }
+}
