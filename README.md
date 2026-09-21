@@ -50,7 +50,7 @@ npm run start    # serve dist/ with Express on http://localhost:8080
 1. Create a building map in [mapcreator](https://github.com/emiliano-go/mapcreator)
    and export it as JSON (`Export` in the menu bar).
 2. Save it under `public/maps/<building>/<name>.json` (a plain `BuildingMap` or the
-   full editor export — both work).
+   full editor export; both work).
 3. Regenerate the catalog:
    ```bash
    npm run index
@@ -90,4 +90,4 @@ server.js         Express server for the production build
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT; see [LICENSE](LICENSE).
