@@ -4,11 +4,14 @@ import MapCatalog from './components/MapCatalog.vue'
 import AppHeader from './components/AppHeader.vue'
 import FloorTabs from './components/FloorTabs.vue'
 import MapCanvas from './components/MapCanvas.vue'
-import SearchOverlay from './components/SearchOverlay.vue'
+import SearchBar from './components/SearchBar.vue'
+import RoutePanel from './components/RoutePanel.vue'
 import DisclaimerModal from './components/DisclaimerModal.vue'
 import { appConfig } from './config.js'
 import { normalizeBuildingMap, floorsOfBuilding } from './lib/map.js'
 import { extractRooms } from './lib/rooms.js'
+import { buildGraph, getNode, nearestTraversable, findEntrance } from './lib/graph.js'
+import { findPath } from './lib/pathfinder.js'
 import { useMetrics } from './composables/useMetrics.js'
 import { readStorage, writeStorage } from './lib/storage.js'
 
@@ -17,8 +20,8 @@ const THEME_KEY = 'urumap_theme'
 const { track, trackView } = useMetrics()
 
 const view = ref('catalog')
-const searchOpen = ref(false)
 const canvasRef = ref(null)
+const searchBarRef = ref(null)
 const catalog = ref([])
 const map = ref(null)
 const selectedMapId = ref(null)
@@ -26,6 +29,12 @@ const buildingId = ref(null)
 const currentFloor = ref(null)
 const error = ref('')
 const loading = ref(false)
+
+const origin = ref(null)
+const goal = ref(null)
+const pathResult = ref(null)
+const pickingOrigin = ref(false)
+const routeOptions = ref({ accessibleOnly: false, preferElevator: false, noOutside: false })
 
 const prefersLight =
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches
@@ -36,6 +45,20 @@ const floorData = computed(
   () => floors.value.find((f) => f.floorIndex === currentFloor.value) || null
 )
 const rooms = computed(() => (map.value ? extractRooms(map.value) : []))
+
+const graphData = computed(() =>
+  map.value ? buildGraph(map.value, { noOutside: routeOptions.value.noOutside }) : null
+)
+
+const route = computed(() => {
+  const result = pathResult.value
+  if (!result?.found || result.path.length === 0) return null
+  return {
+    path: result.path,
+    start: result.path[0],
+    goal: result.path[result.path.length - 1]
+  }
+})
 
 const loadCatalog = async () => {
   try {
@@ -66,11 +89,19 @@ const syncUrl = (replace = false) => {
   window.history[replace ? 'replaceState' : 'pushState']({ map: selectedMapId.value }, '', url)
 }
 
+const resetRoute = () => {
+  origin.value = null
+  goal.value = null
+  pathResult.value = null
+  pickingOrigin.value = false
+}
+
 const selectMap = async (id, { fromUrl = false } = {}) => {
   const entry = catalog.value.find((m) => m.id === id)
   if (!entry) return
   selectedMapId.value = id
   map.value = null
+  resetRoute()
   error.value = ''
   loading.value = true
   view.value = 'map'
@@ -96,7 +127,7 @@ const selectMap = async (id, { fromUrl = false } = {}) => {
 
 const backToCatalog = ({ fromUrl = false } = {}) => {
   view.value = 'catalog'
-  searchOpen.value = false
+  resetRoute()
   selectedMapId.value = null
   map.value = null
   document.title = appConfig.name
@@ -127,14 +158,72 @@ const selectBuilding = (id) => {
   currentFloor.value = list[0]?.floorIndex ?? null
 }
 
-const selectRoom = async (room) => {
-  searchOpen.value = false
-  track('room_click', { room: room.label, floor: room.floor })
-  if (room.floor !== currentFloor.value) {
-    currentFloor.value = room.floor
-    await nextTick()
+const snapNode = (point) => {
+  if (!map.value || !point) return null
+  return (
+    getNode(map.value, point.floor, point.row, point.col) ??
+    nearestTraversable(map.value, point.floor, point.row, point.col)
+  )
+}
+
+const computeRoute = () => {
+  if (!map.value || !origin.value || !goal.value) {
+    pathResult.value = null
+    return
   }
-  setTimeout(() => canvasRef.value?.focusRoom(room.row, room.col), 30)
+  const from = snapNode(origin.value)
+  const to = snapNode(goal.value)
+  if (!from || !to) {
+    pathResult.value = { found: false, path: [], totalWeight: 0, floorChanges: 0 }
+    return
+  }
+  pathResult.value = findPath(graphData.value, from.id, to.id, {
+    accessibleOnly: routeOptions.value.accessibleOnly,
+    preferElevator: routeOptions.value.preferElevator
+  })
+}
+
+const chooseGoal = (room) => {
+  if (!map.value || !room) return
+  goal.value = room
+  if (!origin.value) origin.value = findEntrance(map.value)
+  track('route', { to: room.label, floor: room.floor })
+  computeRoute()
+  if (origin.value && origin.value.floor !== currentFloor.value) {
+    currentFloor.value = origin.value.floor
+  }
+}
+
+const onPickTile = (tile) => {
+  if (!map.value) return
+  pickingOrigin.value = false
+  const node = nearestTraversable(map.value, currentFloor.value, tile.row, tile.col)
+  if (!node) return
+  const floor = map.value.floors.find((f) => f.floorIndex === node.floorIndex)
+  origin.value = {
+    floor: node.floorIndex,
+    row: node.row,
+    col: node.col,
+    label: 'Mi ubicación',
+    floorLabel: floor?.label ?? ''
+  }
+  computeRoute()
+}
+
+const togglePickOrigin = () => {
+  pickingOrigin.value = !pickingOrigin.value
+}
+
+const updateRouteOptions = (options) => {
+  routeOptions.value = options
+  computeRoute()
+}
+
+const goToGoalFloor = async (floor) => {
+  currentFloor.value = floor
+  if (!goal.value) return
+  await nextTick()
+  setTimeout(() => canvasRef.value?.focusRoom(goal.value.row, goal.value.col), 30)
 }
 
 const toggleTheme = () => {
@@ -151,9 +240,9 @@ watch(currentFloor, () => {
 })
 
 const onKeydown = (event) => {
-  if (event.key === '/' && view.value === 'map' && !searchOpen.value) {
+  if (event.key === '/' && view.value === 'map') {
     event.preventDefault()
-    searchOpen.value = true
+    searchBarRef.value?.focus()
   }
 }
 
@@ -193,7 +282,6 @@ onBeforeUnmount(() => {
         :map-name="map?.name || appConfig.name"
         :theme="theme"
         @back="backToCatalog()"
-        @search="searchOpen = true"
         @toggle-theme="toggleTheme"
         @reset="canvasRef?.fit()"
       />
@@ -207,22 +295,41 @@ onBeforeUnmount(() => {
         @select-building="selectBuilding"
       />
 
+      <SearchBar ref="searchBarRef" :rooms="rooms" @select="chooseGoal" />
+
+      <RoutePanel
+        :origin="origin"
+        :goal="goal"
+        :result="pathResult"
+        :options="routeOptions"
+        :picking="pickingOrigin"
+        :current-floor="currentFloor"
+        @pick-origin="togglePickOrigin"
+        @clear="resetRoute"
+        @update:options="updateRouteOptions"
+        @go-to="goToGoalFloor"
+      />
+
       <main class="map-area">
-        <MapCanvas v-if="floorData" ref="canvasRef" :floor="floorData" :theme="theme" />
+        <MapCanvas
+          v-if="floorData"
+          ref="canvasRef"
+          :floor="floorData"
+          :theme="theme"
+          :route="route"
+          :picking="pickingOrigin"
+          @pick="onPickTile"
+        />
         <div v-if="loading" class="overlay-msg" aria-live="polite">Cargando mapa...</div>
         <div v-else-if="error" class="overlay-msg error" role="alert">
           <p>{{ error }}</p>
           <button @click="backToCatalog()">Volver</button>
         </div>
+        <div v-if="pickingOrigin" class="pick-hint" aria-live="polite">
+          Tocá el mapa para marcar tu ubicación
+        </div>
       </main>
     </template>
-
-    <SearchOverlay
-      :open="searchOpen"
-      :rooms="rooms"
-      @select="selectRoom"
-      @close="searchOpen = false"
-    />
   </div>
 </template>
 
@@ -311,6 +418,22 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   cursor: pointer;
+}
+
+.pick-hint {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 0.5rem 0.9rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 code {

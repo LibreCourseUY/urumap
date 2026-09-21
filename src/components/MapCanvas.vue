@@ -4,8 +4,12 @@ import { renderFloor } from '../lib/render.js'
 
 const props = defineProps({
   floor: { type: Object, default: null },
-  theme: { type: String, default: 'dark' }
+  theme: { type: String, default: 'dark' },
+  route: { type: Object, default: null },
+  picking: { type: Boolean, default: false }
 })
+
+const emit = defineEmits(['pick'])
 
 const containerRef = ref(null)
 const canvasRef = ref(null)
@@ -19,6 +23,7 @@ const MAX_TILE = 80
 const pointers = new Map()
 let panning = false
 let lastPan = { x: 0, y: 0 }
+let downPoint = null
 let pinchStartDist = 0
 let pinchStartTile = 24
 let rafId = 0
@@ -42,7 +47,8 @@ const draw = () => {
     offsetY: offset.value.y,
     width: w,
     height: h,
-    theme: props.theme
+    theme: props.theme,
+    route: props.route
   })
 }
 
@@ -86,6 +92,7 @@ const onPointerDown = (e) => {
   if (pointers.size === 1) {
     panning = true
     lastPan = { x: e.clientX, y: e.clientY }
+    downPoint = { x: e.clientX, y: e.clientY }
   } else if (pointers.size === 2) {
     panning = false
     const [a, b] = [...pointers.values()]
@@ -116,6 +123,26 @@ const onPointerMove = (e) => {
 const onPointerUp = (e) => {
   pointers.delete(e.pointerId)
   if (pointers.size < 1) panning = false
+  if (props.picking && downPoint) {
+    const moved = distBetween(downPoint, { x: e.clientX, y: e.clientY })
+    if (moved < 8) {
+      const tile = screenToTile(e.clientX, e.clientY)
+      if (tile) emit('pick', tile)
+    }
+  }
+  downPoint = null
+}
+
+const screenToTile = (clientX, clientY) => {
+  const canvas = canvasRef.value
+  if (!canvas) return null
+  const rect = canvas.getBoundingClientRect()
+  const col = Math.floor((clientX - rect.left - offset.value.x) / tileSize.value)
+  const row = Math.floor((clientY - rect.top - offset.value.y) / tileSize.value)
+  if (props.floor) {
+    if (row < 0 || col < 0 || row >= props.floor.height || col >= props.floor.width) return null
+  }
+  return { row, col }
 }
 
 const onWheel = (e) => {
@@ -162,13 +189,14 @@ watch(
 )
 watch(() => props.theme, scheduleDraw)
 
-defineExpose({ fit, focusRoom })
+defineExpose({ fit, focusRoom, screenToTile })
 </script>
 
 <template>
   <div ref="containerRef" class="map-canvas">
     <canvas
       ref="canvasRef"
+      :class="{ picking }"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
@@ -195,5 +223,10 @@ canvas {
 
 canvas:active {
   cursor: grabbing;
+}
+
+canvas.picking,
+canvas.picking:active {
+  cursor: crosshair;
 }
 </style>

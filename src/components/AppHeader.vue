@@ -4,7 +4,7 @@ defineProps({
   theme: { type: String, default: 'dark' }
 })
 
-defineEmits(['back', 'search', 'toggle-theme', 'reset'])
+defineEmits(['back', 'toggle-theme', 'reset'])
 </script>
 
 <template>
@@ -18,14 +18,6 @@ defineEmits(['back', 'search', 'toggle-theme', 'reset'])
     <h1 class="title" :title="mapName">{{ mapName }}</h1>
 
     <div class="actions">
-      <button class="icon-btn" aria-label="Buscar" @click="$emit('search')">
-        <svg viewBox="0 0 24 24" width="22" height="22">
-          <path
-            fill="currentColor"
-            d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"
-          />
-        </svg>
-      </button>
       <button
         class="icon-btn"
         :aria-label="theme === 'dark' ? 'Modo claro' : 'Modo oscuro'"

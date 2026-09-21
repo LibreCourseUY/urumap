@@ -6,7 +6,17 @@ const OVERLAY_THRESHOLD = 6
 const LABEL_THRESHOLD = 7
 
 export function renderFloor(ctx, opts) {
-  const { floor, tileSize, offsetX, offsetY, width, height, theme = 'dark', showGrid = true } = opts
+  const {
+    floor,
+    tileSize,
+    offsetX,
+    offsetY,
+    width,
+    height,
+    theme = 'dark',
+    showGrid = true,
+    route = null
+  } = opts
 
   ctx.clearRect(0, 0, width, height)
   ctx.save()
@@ -83,6 +93,8 @@ export function renderFloor(ctx, opts) {
     ctx.stroke()
   }
 
+  if (route) drawRoute(ctx, { floor, tileSize, route, theme })
+
   if (tileSize >= LABEL_THRESHOLD) {
     for (const { label, row, col } of floorRoomLabels(floor)) {
       if (row < rowStart || row >= rowEnd || col < colStart || col >= colEnd) continue
@@ -112,4 +124,64 @@ function drawLabel(ctx, text, cx, cy, tileSize) {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(text, cx, cy)
+}
+
+function strokePath(ctx, path, floorIndex, tileSize) {
+  ctx.beginPath()
+  let drawing = false
+  for (const node of path) {
+    if (node.floorIndex !== floorIndex) {
+      drawing = false
+      continue
+    }
+    const x = node.col * tileSize + tileSize / 2
+    const y = node.row * tileSize + tileSize / 2
+    if (drawing) ctx.lineTo(x, y)
+    else {
+      ctx.moveTo(x, y)
+      drawing = true
+    }
+  }
+  ctx.stroke()
+}
+
+function drawMarker(ctx, node, floorIndex, tileSize, color, label) {
+  if (!node || node.floorIndex !== floorIndex) return
+  const x = node.col * tileSize + tileSize / 2
+  const y = node.row * tileSize + tileSize / 2
+  const r = Math.max(6, tileSize * 0.34)
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.fillStyle = color
+  ctx.fill()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = '#fff'
+  ctx.stroke()
+  if (tileSize >= 14) {
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold ${Math.round(r * 1.1)}px system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, x, y)
+  }
+}
+
+// Draws the A* route for the current floor plus the origin/goal markers.
+function drawRoute(ctx, { floor, tileSize, route, theme }) {
+  const { path = [], start = null, goal = null } = route || {}
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  ctx.strokeStyle = theme === 'light' ? 'rgba(255,255,255,0.85)' : 'rgba(6,10,20,0.85)'
+  ctx.lineWidth = Math.max(5, tileSize * 0.34)
+  strokePath(ctx, path, floor.floorIndex, tileSize)
+
+  ctx.strokeStyle = theme === 'light' ? '#2563eb' : '#60a5fa'
+  ctx.lineWidth = Math.max(3, tileSize * 0.2)
+  strokePath(ctx, path, floor.floorIndex, tileSize)
+
+  drawMarker(ctx, start, floor.floorIndex, tileSize, '#22c55e', 'A')
+  drawMarker(ctx, goal, floor.floorIndex, tileSize, '#ef4444', 'B')
+  ctx.restore()
 }

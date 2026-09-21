@@ -14,6 +14,21 @@ pan, zoom, floor switching and room search.
 Maps are deep-linkable: opening `/?map=<id>&floor=<n>` restores that floor, and
 the current map/floor is kept in the URL as you browse.
 
+## Finding your way around
+
+Every map has a search bar. Search for a room and UruMap draws the shortest
+route from your current position to it, across floors when needed.
+
+- The origin defaults to the building entrance; use **Marcar** and tap the map
+  to set your own position (press `/` to jump to the search bar).
+- Routes use the A* pathfinder from
+  [mapcreator](https://github.com/emiliano-go/mapcreator), ported to plain JS
+  (`src/lib/graph.js`, `src/lib/pathfinder.js`). Stairs and elevators create
+  cross-floor edges; doors carry a small cost surcharge.
+- Options: only accessible tiles, prefer elevators, or avoid the outside.
+- The route is drawn as an A→B line for the current floor; use the floor tabs
+  (or the "Ir a …" shortcut) to follow it across floors.
+
 ## Requirements
 
 - Node.js 20+ (see `.nvmrc`)
@@ -66,8 +81,8 @@ compression and cache headers, and exposes `GET /healthz`.
 ## Project layout
 
 ```
-src/components/   Vue components (header, floor tabs, canvas, search, catalog)
-src/lib/          Framework-free logic: map parsing, room extraction, renderer
+src/components/   Vue components (header, floor tabs, canvas, search, routing)
+src/lib/          Framework-free logic: map parsing, rooms, renderer, graph + A*
 scripts/          Map catalog build step
 test/             Node test runner suites
 server.js         Express server for the production build
