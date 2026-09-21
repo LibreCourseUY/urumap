@@ -19,11 +19,20 @@ RUN npm run build
 # Production stage
 FROM node:20-alpine
 
+ENV NODE_ENV=production
 WORKDIR /app
+
 COPY package*.json ./
 RUN npm ci --omit=dev
-COPY --from=builder /app/dist ./dist
-COPY server.js .
+
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --chown=node:node server.js .
+
+USER node
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:8080/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
 CMD ["node", "server.js"]

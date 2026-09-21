@@ -1,10 +1,22 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { appConfig } from '../config.js'
 import { readStorage, writeStorage } from '../lib/storage.js'
 
 const STORAGE_KEY = 'urumap_terms_accepted'
 const show = ref(!!appConfig.disclaimer && !readStorage(STORAGE_KEY))
+const buttonRef = ref(null)
+
+watch(
+  show,
+  async (visible) => {
+    if (visible) {
+      await nextTick()
+      buttonRef.value?.focus()
+    }
+  },
+  { immediate: true }
+)
 
 const accept = () => {
   writeStorage(STORAGE_KEY, 'true')
@@ -14,11 +26,11 @@ const accept = () => {
 
 <template>
   <Teleport to="body">
-    <div v-if="show" class="overlay">
+    <div v-if="show" class="overlay" role="dialog" aria-modal="true" aria-label="Aviso">
       <div class="modal">
         <h2>Aviso</h2>
         <p class="body">{{ appConfig.disclaimer }}</p>
-        <button @click="accept">Acepto los términos</button>
+        <button ref="buttonRef" type="button" @click="accept">Acepto los términos</button>
       </div>
     </div>
   </Teleport>

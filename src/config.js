@@ -3,8 +3,7 @@ const base = env.BASE_URL || '/'
 
 export const appConfig = {
   name: env.VITE_APP_NAME || 'UruMap',
-  description:
-    env.VITE_APP_DESCRIPTION || 'Mapas interactivos de edificios públicos de Uruguay',
+  description: env.VITE_APP_DESCRIPTION || 'Mapas interactivos de edificios públicos de Uruguay',
   disclaimer: env.VITE_DISCLAIMER || '',
   base,
   catalogUrl: `${base}maps/index.json`,

@@ -2,9 +2,7 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const mapsDir = fileURLToPath(new URL('../public/maps/', import.meta.url))
-
-async function walk(dir) {
+export async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true })
   const files = []
   for (const entry of entries) {
@@ -15,11 +13,14 @@ async function walk(dir) {
   return files
 }
 
-function toId(relativePath) {
-  return relativePath.replace(/\.json$/, '').split(sep).join('-')
+export function toId(relativePath) {
+  return relativePath
+    .replace(/\.json$/, '')
+    .split(sep)
+    .join('-')
 }
 
-async function buildEntry(file) {
+export async function buildEntry(mapsDir, file) {
   const relativePath = relative(mapsDir, file).split(sep).join('/')
   const raw = JSON.parse(await readFile(file, 'utf8'))
   const map = raw && raw.map && Array.isArray(raw.map.floors) ? raw.map : raw
@@ -35,10 +36,18 @@ async function buildEntry(file) {
   }
 }
 
-const files = await walk(mapsDir)
-const entries = await Promise.all(files.map(buildEntry))
-entries.sort((a, b) => a.name.localeCompare(b.name))
+export async function buildIndex(mapsDir) {
+  const files = await walk(mapsDir)
+  const entries = await Promise.all(files.map((file) => buildEntry(mapsDir, file)))
+  entries.sort((a, b) => a.name.localeCompare(b.name))
+  return entries
+}
 
-const outPath = join(mapsDir, 'index.json')
-await writeFile(outPath, JSON.stringify(entries, null, 2) + '\n')
-console.log(`map index: ${entries.length} map(s) -> ${relative(process.cwd(), outPath)}`)
+const mapsDir = fileURLToPath(new URL('../public/maps/', import.meta.url))
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const entries = await buildIndex(mapsDir)
+  const outPath = join(mapsDir, 'index.json')
+  await writeFile(outPath, JSON.stringify(entries, null, 2) + '\n')
+  console.log(`map index: ${entries.length} map(s) -> ${relative(process.cwd(), outPath)}`)
+}

@@ -57,7 +57,8 @@ export function renderFloor(ctx, opts) {
         ctx.fillRect(x, y, tileSize, tileSize)
         if (style.label) {
           ctx.fillStyle = '#fff'
-          const size = overlay === 'exit_door' ? Math.floor(tileSize * 0.4) : Math.floor(tileSize * 0.7)
+          const size =
+            overlay === 'exit_door' ? Math.floor(tileSize * 0.4) : Math.floor(tileSize * 0.7)
           ctx.font = `bold ${size}px monospace`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'

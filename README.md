@@ -11,6 +11,25 @@ generates `public/maps/index.json`, which the app uses as its catalog. The viewe
 draws the tile grid (`base` + `overlay` + `meta` labels) on an HTML canvas, with
 pan, zoom, floor switching and room search.
 
+Maps are deep-linkable: opening `/?map=<id>&floor=<n>` restores that floor, and
+the current map/floor is kept in the URL as you browse.
+
+## Requirements
+
+- Node.js 20+ (see `.nvmrc`)
+
+## Development
+
+```bash
+npm ci           # install dependencies
+npm run dev      # http://localhost:5173
+npm run lint     # ESLint
+npm run format   # Prettier
+npm test         # parsing, room extraction, renderer and catalog checks
+npm run build    # regenerates the index and builds to dist/
+npm run start    # serve dist/ with Express on http://localhost:8080
+```
+
 ## Adding a map
 
 1. Create a building map in [mapcreator](https://github.com/emiliano-go/mapcreator)
@@ -21,34 +40,37 @@ pan, zoom, floor switching and room search.
    ```bash
    npm run index
    ```
-4. Commit both files. That's it.
-
-## Development
-
-```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run test     # checks parsing, room extraction and the renderer
-npm run build    # regenerates the index and builds to dist/
-npm run start    # serve dist/ with Express
-```
+4. Commit both files. That's it. `npm test` fails if `index.json` is out of date.
 
 ## Configuration
 
 All branding is set through environment variables (see `.env.example`):
 
-| Variable                 | Default                                              | Description                        |
-| ------------------------ | ---------------------------------------------------- | ---------------------------------- |
-| `VITE_APP_NAME`          | `UruMap`                                             | App title                          |
-| `VITE_APP_DESCRIPTION`   | `Mapas interactivos de edificios públicos de Uruguay`| Meta description                   |
-| `VITE_DISCLAIMER`        | _(empty)_                                            | Optional disclaimer modal text     |
-| `VITE_METRICS_API_KEY`   | _(empty)_                                            | Enables optional usage metrics     |
+| Variable               | Default                                               | Description                    |
+| ---------------------- | ----------------------------------------------------- | ------------------------------ |
+| `VITE_APP_NAME`        | `UruMap`                                              | App title                      |
+| `VITE_APP_DESCRIPTION` | `Mapas interactivos de edificios públicos de Uruguay` | Meta description               |
+| `VITE_DISCLAIMER`      | _(empty)_                                             | Optional disclaimer modal text |
+| `VITE_METRICS_API_KEY` | _(empty)_                                             | Enables optional usage metrics |
 
 ## Docker
 
 ```bash
 docker build -t urumap .
 docker run -p 8080:8080 urumap
+```
+
+The production image runs as a non-root user, serves the built `dist/` with
+compression and cache headers, and exposes `GET /healthz`.
+
+## Project layout
+
+```
+src/components/   Vue components (header, floor tabs, canvas, search, catalog)
+src/lib/          Framework-free logic: map parsing, room extraction, renderer
+scripts/          Map catalog build step
+test/             Node test runner suites
+server.js         Express server for the production build
 ```
 
 ## License

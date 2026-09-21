@@ -11,6 +11,7 @@ const emit = defineEmits(['select', 'close'])
 
 const query = ref('')
 const inputRef = ref(null)
+const overlayRef = ref(null)
 
 const results = computed(() => filterRooms(props.rooms, query.value, 40))
 
@@ -28,14 +29,37 @@ watch(
 const pick = (room) => emit('select', room)
 
 const onKeydown = (e) => {
-  if (e.key === 'Escape') emit('close')
+  if (e.key === 'Escape') {
+    emit('close')
+    return
+  }
+  if (e.key !== 'Tab' || !overlayRef.value) return
+  const focusable = overlayRef.value.querySelectorAll('input, button')
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
 }
 </script>
 
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="open" class="overlay" @keydown="onKeydown">
+      <div
+        v-if="open"
+        ref="overlayRef"
+        class="overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Buscar sala"
+        @keydown="onKeydown"
+      >
         <div class="bar">
           <input
             ref="inputRef"
@@ -47,7 +71,10 @@ const onKeydown = (e) => {
           />
           <button class="close" aria-label="Cerrar búsqueda" @click="$emit('close')">
             <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+              <path
+                fill="currentColor"
+                d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              />
             </svg>
           </button>
         </div>

@@ -27,6 +27,7 @@ rooms and spaces in public buildings.
    ```
 4. Run the checks:
    ```bash
+   npm run lint
    npm test
    npm run build
    ```

@@ -156,7 +156,10 @@ onBeforeUnmount(() => {
   if (rafId) cancelAnimationFrame(rafId)
 })
 
-watch(() => props.floor, () => nextTick(fit))
+watch(
+  () => props.floor,
+  () => nextTick(fit)
+)
 watch(() => props.theme, scheduleDraw)
 
 defineExpose({ fit, focusRoom })

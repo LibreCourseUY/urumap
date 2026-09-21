@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   base: '/',
   plugins: [vue()],
-  build: {
-    brotliSize: false
-  }
+  server: { host: true },
+  preview: { host: true },
+  build: { sourcemap: false }
 })

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import MapCatalog from './components/MapCatalog.vue'
 import AppHeader from './components/AppHeader.vue'
 import FloorTabs from './components/FloorTabs.vue'
@@ -10,6 +10,9 @@ import { appConfig } from './config.js'
 import { normalizeBuildingMap, floorsOfBuilding } from './lib/map.js'
 import { extractRooms } from './lib/rooms.js'
 import { useMetrics } from './composables/useMetrics.js'
+import { readStorage, writeStorage } from './lib/storage.js'
+
+const THEME_KEY = 'urumap_theme'
 
 const { track, trackView } = useMetrics()
 
@@ -26,7 +29,7 @@ const loading = ref(false)
 
 const prefersLight =
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches
-const theme = ref(prefersLight ? 'light' : 'dark')
+const theme = ref(readStorage(THEME_KEY) || (prefersLight ? 'light' : 'dark'))
 
 const floors = computed(() => (map.value ? floorsOfBuilding(map.value, buildingId.value) : []))
 const floorData = computed(
@@ -45,7 +48,25 @@ const loadCatalog = async () => {
   }
 }
 
-const selectMap = async (id) => {
+const setMetaDescription = (content) => {
+  document.querySelector('meta[name="description"]')?.setAttribute('content', content)
+}
+
+const syncUrl = (replace = false) => {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams()
+  if (view.value === 'map' && selectedMapId.value) {
+    params.set('map', selectedMapId.value)
+    if (currentFloor.value !== null && currentFloor.value !== undefined) {
+      params.set('floor', String(currentFloor.value))
+    }
+  }
+  const query = params.toString()
+  const url = `${window.location.pathname}${query ? `?${query}` : ''}`
+  window.history[replace ? 'replaceState' : 'pushState']({ map: selectedMapId.value }, '', url)
+}
+
+const selectMap = async (id, { fromUrl = false } = {}) => {
   const entry = catalog.value.find((m) => m.id === id)
   if (!entry) return
   selectedMapId.value = id
@@ -53,7 +74,10 @@ const selectMap = async (id) => {
   error.value = ''
   loading.value = true
   view.value = 'map'
-  track('map_open', { map: id })
+  if (!fromUrl) {
+    syncUrl()
+    track('map_open', { map: id })
+  }
   try {
     const res = await fetch(`${appConfig.base}${entry.file}`)
     if (!res.ok) throw new Error(`No se pudo cargar el mapa (HTTP ${res.status})`)
@@ -62,6 +86,7 @@ const selectMap = async (id) => {
     buildingId.value = normalized.buildings[0]?.id || 'default'
     currentFloor.value = normalized.defaultFloor
     document.title = normalized.name
+    setMetaDescription(normalized.description || appConfig.description)
   } catch (err) {
     error.value = err.message
   } finally {
@@ -69,10 +94,31 @@ const selectMap = async (id) => {
   }
 }
 
-const backToCatalog = () => {
+const backToCatalog = ({ fromUrl = false } = {}) => {
   view.value = 'catalog'
   searchOpen.value = false
+  selectedMapId.value = null
+  map.value = null
   document.title = appConfig.name
+  setMetaDescription(appConfig.description)
+  if (!fromUrl && typeof window !== 'undefined') {
+    window.history.pushState({}, '', window.location.pathname)
+  }
+}
+
+const applyRoute = async () => {
+  const params = new URLSearchParams(window.location.search)
+  const mapId = params.get('map')
+  if (!mapId) {
+    backToCatalog({ fromUrl: true })
+    return
+  }
+  await selectMap(mapId, { fromUrl: true })
+  const floorParam = params.get('floor')
+  if (floorParam !== null) {
+    const floor = Number(floorParam)
+    if (Number.isInteger(floor)) currentFloor.value = floor
+  }
 }
 
 const selectBuilding = (id) => {
@@ -97,12 +143,36 @@ const toggleTheme = () => {
 
 watch(theme, (value) => {
   document.documentElement.dataset.theme = value
+  writeStorage(THEME_KEY, value)
 })
+
+watch(currentFloor, () => {
+  if (view.value === 'map') syncUrl(true)
+})
+
+const onKeydown = (event) => {
+  if (event.key === '/' && view.value === 'map' && !searchOpen.value) {
+    event.preventDefault()
+    searchOpen.value = true
+  }
+}
+
+const onPopState = async () => {
+  await applyRoute()
+}
 
 onMounted(async () => {
   document.documentElement.dataset.theme = theme.value
   catalog.value = await loadCatalog()
+  await applyRoute()
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('popstate', onPopState)
   trackView()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('popstate', onPopState)
 })
 </script>
 
@@ -122,7 +192,7 @@ onMounted(async () => {
       <AppHeader
         :map-name="map?.name || appConfig.name"
         :theme="theme"
-        @back="backToCatalog"
+        @back="backToCatalog()"
         @search="searchOpen = true"
         @toggle-theme="toggleTheme"
         @reset="canvasRef?.fit()"
@@ -139,10 +209,10 @@ onMounted(async () => {
 
       <main class="map-area">
         <MapCanvas v-if="floorData" ref="canvasRef" :floor="floorData" :theme="theme" />
-        <div v-if="loading" class="overlay-msg">Cargando mapa...</div>
-        <div v-else-if="error" class="overlay-msg error">
+        <div v-if="loading" class="overlay-msg" aria-live="polite">Cargando mapa...</div>
+        <div v-else-if="error" class="overlay-msg error" role="alert">
           <p>{{ error }}</p>
-          <button @click="backToCatalog">Volver</button>
+          <button @click="backToCatalog()">Volver</button>
         </div>
       </main>
     </template>
@@ -190,7 +260,12 @@ body {
 }
 
 body {
-  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  font-family:
+    'Segoe UI',
+    -apple-system,
+    BlinkMacSystemFont,
+    Roboto,
+    sans-serif;
   background: var(--surface);
   color: var(--text);
   -webkit-text-size-adjust: 100%;

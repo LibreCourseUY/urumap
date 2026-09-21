@@ -1,12 +1,4 @@
-const TILE_TYPES = new Set([
-  'wall',
-  'floor',
-  'stairs',
-  'elevator',
-  'outside',
-  'dirt_path',
-  'void'
-])
+const TILE_TYPES = new Set(['wall', 'floor', 'stairs', 'elevator', 'outside', 'dirt_path', 'void'])
 
 const OVERLAY_TYPES = new Set(['door', 'exit_door', 'room'])
 
@@ -23,6 +15,8 @@ export function normalizeBuildingMap(raw) {
   return {
     id: map.id || 'map',
     name: map.name || 'Mapa sin nombre',
+    description: map.description || '',
+    region: map.region || '',
     version: map.version || 'unknown',
     defaultFloor: Number.isInteger(map.defaultFloor) ? map.defaultFloor : floors[0].floorIndex,
     floors,
@@ -44,7 +38,5 @@ export function isValidFloor(floor) {
 
 export function isValidOverlay(floor) {
   if (!floor || !Array.isArray(floor.overlay)) return false
-  return floor.overlay.every((row) =>
-    row.every((cell) => cell === null || OVERLAY_TYPES.has(cell))
-  )
+  return floor.overlay.every((row) => row.every((cell) => cell === null || OVERLAY_TYPES.has(cell)))
 }

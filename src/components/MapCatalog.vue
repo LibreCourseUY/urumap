@@ -25,7 +25,9 @@ defineEmits(['select'])
           <span v-if="map.region" class="card-region">{{ map.region }}</span>
           <span v-if="map.description" class="card-desc">{{ map.description }}</span>
           <span class="card-meta">
-            <span v-if="map.floorCount">{{ map.floorCount }} piso{{ map.floorCount > 1 ? 's' : '' }}</span>
+            <span v-if="map.floorCount"
+              >{{ map.floorCount }} piso{{ map.floorCount > 1 ? 's' : '' }}</span
+            >
             <span v-if="map.buildingCount > 1">{{ map.buildingCount }} edificios</span>
           </span>
         </button>
@@ -90,7 +92,9 @@ defineEmits(['select'])
   border: 1px solid var(--border);
   border-radius: 14px;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
 }
 
 .card:active {
