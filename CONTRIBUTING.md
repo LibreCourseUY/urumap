@@ -60,7 +60,12 @@ All commits must be GPG-signed. See the community
 git config --global commit.gpgsign true
 ```
 
-## Contributor License Agreement
+## Developer Certificate of Origin
 
-By opening a Pull Request with signed commits you agree to our
-[CLA](https://librecourseuy.github.io/CLA).
+By opening a Pull Request, certify your commits under the
+[Developer Certificate of Origin (DCO)](https://developercertificate.org/) by
+signing off:
+
+```bash
+git commit -s
+```
